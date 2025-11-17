@@ -1,6 +1,7 @@
 class CommentApp {
     constructor() {
         this.comments = [];
+        this.baseUrl = window.location.origin;
         this.init();
     }
 
@@ -12,12 +13,21 @@ class CommentApp {
 
     async loadComments() {
         try {
-            const response = await fetch('/api/comments');
+            const response = await fetch(`${this.baseUrl}/api/comments`);
+            if (!response.ok) throw new Error('Failed to fetch comments');
+            
             this.comments = await response.json();
             this.renderComments();
+            
             document.getElementById('loading').style.display = 'none';
         } catch (error) {
             console.error('Error loading comments:', error);
+            document.getElementById('loading').innerHTML = `
+                <div class="text-center text-red-600">
+                    <i class="ri-error-warning-line text-4xl mb-2"></i>
+                    <p>Failed to load comments. Please refresh the page.</p>
+                </div>
+            `;
         }
     }
 
@@ -31,11 +41,23 @@ class CommentApp {
             e.preventDefault();
             this.postReply();
         });
+
+        // Close modal when clicking outside
+        document.getElementById('replyModal').addEventListener('click', (e) => {
+            if (e.target.id === 'replyModal') {
+                this.closeReplyModal();
+            }
+        });
     }
 
     async postComment() {
         const nameInput = document.getElementById('name');
         const commentInput = document.getElementById('comment');
+        const submitBtn = document.querySelector('#commentForm button[type="submit"]');
+
+        const originalText = submitBtn.innerHTML;
+        submitBtn.innerHTML = '<i class="ri-loader-4-line animate-spin mr-2"></i>Posting...';
+        submitBtn.disabled = true;
 
         const commentData = {
             name: nameInput.value,
@@ -43,7 +65,7 @@ class CommentApp {
         };
 
         try {
-            const response = await fetch('/api/comments', {
+            const response = await fetch(`${this.baseUrl}/api/comments`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -56,13 +78,17 @@ class CommentApp {
             if (result.success) {
                 nameInput.value = '';
                 commentInput.value = '';
-                await this.loadComments(); // Reload comments
+                await this.loadComments();
+                this.showNotification('Comment posted successfully!', 'success');
             } else {
-                alert('Error posting comment: ' + result.error);
+                this.showNotification('Error: ' + result.error, 'error');
             }
         } catch (error) {
             console.error('Error posting comment:', error);
-            alert('Error posting comment');
+            this.showNotification('Failed to post comment. Please try again.', 'error');
+        } finally {
+            submitBtn.innerHTML = originalText;
+            submitBtn.disabled = false;
         }
     }
 
@@ -70,6 +96,11 @@ class CommentApp {
         const parentId = document.getElementById('replyParentId').value;
         const nameInput = document.getElementById('replyName');
         const commentInput = document.getElementById('replyComment');
+        const submitBtn = document.querySelector('#replyForm button[type="submit"]');
+
+        const originalText = submitBtn.innerHTML;
+        submitBtn.innerHTML = '<i class="ri-loader-4-line animate-spin mr-2"></i>Posting...';
+        submitBtn.disabled = true;
 
         const replyData = {
             name: nameInput.value,
@@ -78,7 +109,7 @@ class CommentApp {
         };
 
         try {
-            const response = await fetch('/api/comments', {
+            const response = await fetch(`${this.baseUrl}/api/comments`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -90,19 +121,23 @@ class CommentApp {
 
             if (result.success) {
                 this.closeReplyModal();
-                await this.loadComments(); // Reload comments
+                await this.loadComments();
+                this.showNotification('Reply posted successfully!', 'success');
             } else {
-                alert('Error posting reply: ' + result.error);
+                this.showNotification('Error: ' + result.error, 'error');
             }
         } catch (error) {
             console.error('Error posting reply:', error);
-            alert('Error posting reply');
+            this.showNotification('Failed to post reply. Please try again.', 'error');
+        } finally {
+            submitBtn.innerHTML = originalText;
+            submitBtn.disabled = false;
         }
     }
 
     async handleReaction(commentId, type) {
         try {
-            const response = await fetch(`/api/comments/${commentId}/reaction`, {
+            const response = await fetch(`${this.baseUrl}/api/comments/${commentId}/reaction`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -113,10 +148,13 @@ class CommentApp {
             const result = await response.json();
 
             if (result.success) {
-                await this.loadComments(); // Reload to get updated counts
+                await this.loadComments();
+            } else {
+                this.showNotification('Failed to update reaction', 'error');
             }
         } catch (error) {
             console.error('Error updating reaction:', error);
+            this.showNotification('Failed to update reaction', 'error');
         }
     }
 
@@ -124,6 +162,7 @@ class CommentApp {
         document.getElementById('replyParentId').value = parentId;
         document.getElementById('replyModal').classList.remove('hidden');
         document.getElementById('replyModal').classList.add('flex');
+        document.getElementById('replyName').focus();
     }
 
     closeReplyModal() {
@@ -135,17 +174,19 @@ class CommentApp {
 
     renderComments() {
         const container = document.getElementById('commentsContainer');
-        container.innerHTML = '';
+        const noComments = document.getElementById('noComments');
+        const loading = document.getElementById('loading');
+
+        loading.style.display = 'none';
 
         if (this.comments.length === 0) {
-            container.innerHTML = `
-                <div class="text-center py-12">
-                    <i class="ri-chat-3-line text-6xl text-gray-300 mb-4"></i>
-                    <p class="text-gray-500 text-lg">No comments yet. Be the first to comment!</p>
-                </div>
-            `;
+            container.innerHTML = '';
+            noComments.classList.remove('hidden');
             return;
         }
+
+        noComments.classList.add('hidden');
+        container.innerHTML = '';
 
         this.comments.forEach(comment => {
             container.appendChild(this.createCommentElement(comment));
@@ -154,7 +195,7 @@ class CommentApp {
 
     createCommentElement(comment, isReply = false) {
         const commentDiv = document.createElement('div');
-        commentDiv.className = isReply ? 'ml-8 mt-4' : 'bg-white p-6 shadow-lg';
+        commentDiv.className = isReply ? 'ml-8 mt-4' : 'bg-white p-6 shadow-lg border border-gray-200';
 
         const time = new Date(comment.timestamp).toLocaleString();
 
@@ -170,26 +211,26 @@ class CommentApp {
                     </div>
                     <p class="text-gray-700 mb-4">${this.escapeHtml(comment.comment)}</p>
                     
-                    <div class="flex items-center space-x-4">
+                    <div class="flex items-center space-x-6">
                         <button onclick="app.handleReaction('${comment.id}', 'like')" 
-                                class="flex items-center space-x-1 text-gray-600 hover:text-blue-600 transition-colors">
-                            <i class="ri-thumb-up-line"></i>
+                                class="flex items-center space-x-2 text-gray-600 hover:text-blue-600 transition-colors duration-200">
+                            <i class="ri-thumb-up-line ${comment.likes > 0 ? 'text-blue-600' : ''}"></i>
                             <span>${comment.likes}</span>
                         </button>
                         <button onclick="app.handleReaction('${comment.id}', 'dislike')" 
-                                class="flex items-center space-x-1 text-gray-600 hover:text-red-600 transition-colors">
-                            <i class="ri-thumb-down-line"></i>
+                                class="flex items-center space-x-2 text-gray-600 hover:text-red-600 transition-colors duration-200">
+                            <i class="ri-thumb-down-line ${comment.dislikes > 0 ? 'text-red-600' : ''}"></i>
                             <span>${comment.dislikes}</span>
                         </button>
                         <button onclick="app.openReplyModal('${comment.id}')" 
-                                class="flex items-center space-x-1 text-gray-600 hover:text-green-600 transition-colors">
+                                class="flex items-center space-x-2 text-gray-600 hover:text-green-600 transition-colors duration-200">
                             <i class="ri-reply-line"></i>
                             <span>Reply</span>
                         </button>
                     </div>
 
                     ${comment.replies && comment.replies.length > 0 ? `
-                        <div class="mt-4 space-y-4 border-l-2 border-gray-200 pl-4">
+                        <div class="mt-6 space-y-4 border-l-2 border-gray-200 pl-4">
                             ${comment.replies.map(reply => this.createCommentElement(reply, true).outerHTML).join('')}
                         </div>
                     ` : ''}
@@ -198,6 +239,37 @@ class CommentApp {
         `;
 
         return commentDiv;
+    }
+
+    showNotification(message, type = 'info') {
+        // Remove existing notification
+        const existingNotification = document.getElementById('notification');
+        if (existingNotification) {
+            existingNotification.remove();
+        }
+
+        const notification = document.createElement('div');
+        notification.id = 'notification';
+        notification.className = `fixed top-4 right-4 p-4 text-white font-semibold shadow-lg border-0 transform transition-transform duration-300 ${
+            type === 'success' ? 'gradient-success' : 
+            type === 'error' ? 'gradient-danger' : 'gradient-primary'
+        }`;
+        notification.textContent = message;
+
+        document.body.appendChild(notification);
+
+        // Animate in
+        setTimeout(() => {
+            notification.classList.add('translate-x-0');
+        }, 100);
+
+        // Remove after 3 seconds
+        setTimeout(() => {
+            notification.classList.add('translate-x-full');
+            setTimeout(() => {
+                notification.remove();
+            }, 300);
+        }, 3000);
     }
 
     escapeHtml(unsafe) {
@@ -210,10 +282,10 @@ class CommentApp {
     }
 
     startRealTimeUpdates() {
-        // Simple polling for real-time updates
+        // Real-time updates every 5 seconds
         setInterval(async () => {
             await this.loadComments();
-        }, 5000); // Update every 5 seconds
+        }, 5000);
     }
 }
 
@@ -222,5 +294,7 @@ function closeReplyModal() {
     app.closeReplyModal();
 }
 
-// Initialize app
-const app = new CommentApp();
+// Initialize app when DOM is loaded
+document.addEventListener('DOMContentLoaded', () => {
+    window.app = new CommentApp();
+});
