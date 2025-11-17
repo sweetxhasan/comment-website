@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Comment Website</title>
+    <title>Comment Website - Real Time</title>
     <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css" rel="stylesheet">
@@ -21,108 +21,152 @@
         .gradient-success {
             background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
         }
+        .gradient-warning {
+            background: linear-gradient(135deg, #f6d365 0%, #fda085 100%);
+        }
+        .fade-in {
+            animation: fadeIn 0.3s ease-in;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
     </style>
 </head>
 <body class="bg-gradient-to-br from-gray-50 to-gray-100 min-h-screen">
     <div class="container mx-auto px-4 py-8 max-w-4xl">
         <!-- Header -->
-        <header class="text-center mb-12">
-            <h1 class="text-4xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent mb-4">
-                Comment Section
+        <header class="text-center mb-8 fade-in">
+            <h1 class="text-4xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent mb-3">
+                💬 Comment Section
             </h1>
-            <p class="text-gray-600 text-lg">Share your thoughts with everyone</p>
+            <p class="text-gray-600 text-lg mb-2">Share your thoughts with everyone in real-time</p>
+            <div id="stats" class="flex justify-center space-x-4 text-sm text-gray-500">
+                <span id="totalComments">Loading...</span>
+                <span>•</span>
+                <span id="serverStatus">🟢 Connected</span>
+            </div>
         </header>
 
         <!-- Comment Form -->
-        <div class="bg-white p-6 shadow-lg mb-8 border border-gray-200">
+        <div class="bg-white p-6 shadow-lg mb-6 border border-gray-200 fade-in">
             <form id="commentForm" class="space-y-4">
-                <div>
-                    <label for="name" class="block text-sm font-medium text-gray-700 mb-2">
-                        <i class="ri-user-line mr-2"></i>Your Name
-                    </label>
-                    <input 
-                        type="text" 
-                        id="name" 
-                        required
-                        class="w-full px-4 py-3 border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
-                        placeholder="Enter your name">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label for="name" class="block text-sm font-medium text-gray-700 mb-2">
+                            <i class="ri-user-line mr-2"></i>Your Name *
+                        </label>
+                        <input 
+                            type="text" 
+                            id="name" 
+                            required
+                            class="w-full px-4 py-3 border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+                            placeholder="Enter your name"
+                            maxlength="50">
+                    </div>
+                    <div class="flex items-end">
+                        <div class="text-sm text-gray-500">
+                            Real-time comments • Instant updates
+                        </div>
+                    </div>
                 </div>
                 
                 <div>
                     <label for="comment" class="block text-sm font-medium text-gray-700 mb-2">
-                        <i class="ri-chat-3-line mr-2"></i>Your Comment
+                        <i class="ri-chat-3-line mr-2"></i>Your Comment *
                     </label>
                     <textarea 
                         id="comment" 
                         required
-                        rows="4"
+                        rows="3"
                         class="w-full px-4 py-3 border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
-                        placeholder="What's on your mind?"></textarea>
+                        placeholder="What's on your mind? Share your thoughts..."
+                        maxlength="500"></textarea>
+                    <div class="text-right text-sm text-gray-500 mt-1">
+                        <span id="charCount">0</span>/500 characters
+                    </div>
                 </div>
                 
                 <button 
                     type="submit"
+                    id="submitBtn"
                     class="w-full gradient-primary text-white py-3 px-6 font-semibold hover:opacity-90 transition-all duration-200 transform hover:scale-[1.02] shadow-lg">
                     <i class="ri-send-plane-line mr-2"></i>Post Comment
                 </button>
             </form>
         </div>
 
+        <!-- Comments Header -->
+        <div class="flex justify-between items-center mb-4 fade-in">
+            <h2 class="text-2xl font-bold text-gray-800">
+                <i class="ri-chat-3-line mr-2"></i>Comments
+            </h2>
+            <button onclick="loadComments()" class="gradient-success text-white px-4 py-2 text-sm font-semibold hover:opacity-90 transition-all duration-200">
+                <i class="ri-refresh-line mr-1"></i>Refresh
+            </button>
+        </div>
+
         <!-- Comments List -->
-        <div id="commentsContainer" class="space-y-6">
+        <div id="commentsContainer" class="space-y-4">
             <!-- Comments will be loaded here -->
         </div>
 
         <!-- Loading State -->
-        <div id="loading" class="text-center py-8">
+        <div id="loading" class="text-center py-8 fade-in">
             <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto"></div>
             <p class="text-gray-600 mt-4">Loading comments...</p>
         </div>
 
-        <!-- No Comments State (Hidden by default) -->
-        <div id="noComments" class="text-center py-12 hidden">
+        <!-- No Comments State -->
+        <div id="noComments" class="text-center py-12 hidden fade-in">
             <i class="ri-chat-3-line text-6xl text-gray-300 mb-4"></i>
-            <p class="text-gray-500 text-lg">No comments yet. Be the first to comment!</p>
+            <p class="text-gray-500 text-lg mb-4">No comments yet. Be the first to comment!</p>
+            <p class="text-gray-400 text-sm">Start the conversation by posting above 👆</p>
         </div>
     </div>
 
     <!-- Reply Modal -->
     <div id="replyModal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50 p-4">
-        <div class="bg-white p-6 max-w-md w-full border border-gray-200">
-            <h3 class="text-xl font-bold mb-4 text-gray-900">Reply to Comment</h3>
+        <div class="bg-white p-6 max-w-md w-full border border-gray-200 fade-in">
+            <h3 class="text-xl font-bold mb-4 text-gray-900">
+                <i class="ri-reply-line mr-2"></i>Reply to Comment
+            </h3>
             <form id="replyForm">
                 <input type="hidden" id="replyParentId">
                 <div class="mb-4">
                     <label for="replyName" class="block text-sm font-medium text-gray-700 mb-2">
-                        Your Name
+                        Your Name *
                     </label>
                     <input 
                         type="text" 
                         id="replyName" 
                         required
-                        class="w-full px-4 py-3 border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200">
+                        class="w-full px-4 py-3 border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+                        placeholder="Enter your name">
                 </div>
                 <div class="mb-4">
                     <label for="replyComment" class="block text-sm font-medium text-gray-700 mb-2">
-                        Your Reply
+                        Your Reply *
                     </label>
                     <textarea 
                         id="replyComment" 
                         required
                         rows="3"
-                        class="w-full px-4 py-3 border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"></textarea>
+                        class="w-full px-4 py-3 border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+                        placeholder="Write your reply..."></textarea>
                 </div>
                 <div class="flex space-x-3">
                     <button 
                         type="submit"
+                        id="replySubmitBtn"
                         class="flex-1 gradient-primary text-white py-3 px-4 font-semibold hover:opacity-90 transition-all duration-200 shadow-lg">
-                        Post Reply
+                        <i class="ri-send-plane-line mr-2"></i>Post Reply
                     </button>
                     <button 
                         type="button"
                         onclick="closeReplyModal()"
                         class="flex-1 gradient-danger text-white py-3 px-4 font-semibold hover:opacity-90 transition-all duration-200 shadow-lg">
-                        Cancel
+                        <i class="ri-close-line mr-2"></i>Cancel
                     </button>
                 </div>
             </form>
