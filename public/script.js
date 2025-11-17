@@ -2,44 +2,64 @@ class CommentApp {
     constructor() {
         this.comments = [];
         this.baseUrl = window.location.origin;
+        this.isLoading = false;
         this.init();
     }
 
     async init() {
-        await this.loadComments();
         this.setupEventListeners();
+        await this.loadComments();
         this.startRealTimeUpdates();
+        this.updateStats();
     }
 
     async loadComments() {
+        if (this.isLoading) return;
+        
+        this.isLoading = true;
+        this.showLoading();
+        
         try {
+            const startTime = Date.now();
             const response = await fetch(`${this.baseUrl}/api/comments`);
-            if (!response.ok) throw new Error('Failed to fetch comments');
             
-            this.comments = await response.json();
-            this.renderComments();
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
             
-            document.getElementById('loading').style.display = 'none';
+            const result = await response.json();
+            const loadTime = Date.now() - startTime;
+            
+            if (result.success) {
+                this.comments = result.data || [];
+                this.renderComments();
+                console.log(`✅ Comments loaded in ${loadTime}ms`);
+            } else {
+                throw new Error(result.error);
+            }
         } catch (error) {
-            console.error('Error loading comments:', error);
-            document.getElementById('loading').innerHTML = `
-                <div class="text-center text-red-600">
-                    <i class="ri-error-warning-line text-4xl mb-2"></i>
-                    <p>Failed to load comments. Please refresh the page.</p>
-                </div>
-            `;
+            console.error('❌ Error loading comments:', error);
+            this.showError('Failed to load comments. Please refresh the page.');
+        } finally {
+            this.isLoading = false;
+            this.hideLoading();
         }
     }
 
     setupEventListeners() {
+        // Comment form
         document.getElementById('commentForm').addEventListener('submit', (e) => {
             e.preventDefault();
             this.postComment();
         });
 
+        // Reply form
         document.getElementById('replyForm').addEventListener('submit', (e) => {
             e.preventDefault();
             this.postReply();
+        });
+
+        // Character count
+        document.getElementById('comment').addEventListener('input', (e) => {
+            document.getElementById('charCount').textContent = e.target.value.length;
         });
 
         // Close modal when clicking outside
@@ -48,47 +68,64 @@ class CommentApp {
                 this.closeReplyModal();
             }
         });
+
+        // Enter key to submit
+        document.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter' && e.ctrlKey) {
+                if (document.getElementById('replyModal').classList.contains('flex')) {
+                    document.getElementById('replyForm').requestSubmit();
+                } else {
+                    document.getElementById('commentForm').requestSubmit();
+                }
+            }
+        });
     }
 
     async postComment() {
         const nameInput = document.getElementById('name');
         const commentInput = document.getElementById('comment');
-        const submitBtn = document.querySelector('#commentForm button[type="submit"]');
+        const submitBtn = document.getElementById('submitBtn');
+
+        const name = nameInput.value.trim();
+        const comment = commentInput.value.trim();
+
+        if (!name || !comment) {
+            this.showNotification('Please fill in all fields', 'error');
+            return;
+        }
 
         const originalText = submitBtn.innerHTML;
-        submitBtn.innerHTML = '<i class="ri-loader-4-line animate-spin mr-2"></i>Posting...';
-        submitBtn.disabled = true;
-
-        const commentData = {
-            name: nameInput.value,
-            comment: commentInput.value
-        };
+        this.setButtonLoading(submitBtn, 'Posting...');
 
         try {
+            const startTime = Date.now();
             const response = await fetch(`${this.baseUrl}/api/comments`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify(commentData)
+                body: JSON.stringify({ name, comment })
             });
 
             const result = await response.json();
+            const responseTime = Date.now() - startTime;
 
             if (result.success) {
                 nameInput.value = '';
                 commentInput.value = '';
-                await this.loadComments();
-                this.showNotification('Comment posted successfully!', 'success');
+                document.getElementById('charCount').textContent = '0';
+                
+                await this.loadComments(); // Reload comments instantly
+                this.showNotification(result.message || 'Comment posted successfully!', 'success');
+                console.log(`✅ Comment posted in ${responseTime}ms`);
             } else {
-                this.showNotification('Error: ' + result.error, 'error');
+                throw new Error(result.error);
             }
         } catch (error) {
-            console.error('Error posting comment:', error);
-            this.showNotification('Failed to post comment. Please try again.', 'error');
+            console.error('❌ Error posting comment:', error);
+            this.showNotification('Failed to post comment: ' + error.message, 'error');
         } finally {
-            submitBtn.innerHTML = originalText;
-            submitBtn.disabled = false;
+            this.setButtonNormal(submitBtn, originalText);
         }
     }
 
@@ -96,17 +133,18 @@ class CommentApp {
         const parentId = document.getElementById('replyParentId').value;
         const nameInput = document.getElementById('replyName');
         const commentInput = document.getElementById('replyComment');
-        const submitBtn = document.querySelector('#replyForm button[type="submit"]');
+        const submitBtn = document.getElementById('replySubmitBtn');
+
+        const name = nameInput.value.trim();
+        const comment = commentInput.value.trim();
+
+        if (!name || !comment) {
+            this.showNotification('Please fill in all fields', 'error');
+            return;
+        }
 
         const originalText = submitBtn.innerHTML;
-        submitBtn.innerHTML = '<i class="ri-loader-4-line animate-spin mr-2"></i>Posting...';
-        submitBtn.disabled = true;
-
-        const replyData = {
-            name: nameInput.value,
-            comment: commentInput.value,
-            parentId: parentId
-        };
+        this.setButtonLoading(submitBtn, 'Posting...');
 
         try {
             const response = await fetch(`${this.baseUrl}/api/comments`, {
@@ -114,24 +152,23 @@ class CommentApp {
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify(replyData)
+                body: JSON.stringify({ name, comment, parentId })
             });
 
             const result = await response.json();
 
             if (result.success) {
                 this.closeReplyModal();
-                await this.loadComments();
-                this.showNotification('Reply posted successfully!', 'success');
+                await this.loadComments(); // Reload comments instantly
+                this.showNotification(result.message || 'Reply posted successfully!', 'success');
             } else {
-                this.showNotification('Error: ' + result.error, 'error');
+                throw new Error(result.error);
             }
         } catch (error) {
-            console.error('Error posting reply:', error);
-            this.showNotification('Failed to post reply. Please try again.', 'error');
+            console.error('❌ Error posting reply:', error);
+            this.showNotification('Failed to post reply: ' + error.message, 'error');
         } finally {
-            submitBtn.innerHTML = originalText;
-            submitBtn.disabled = false;
+            this.setButtonNormal(submitBtn, originalText);
         }
     }
 
@@ -148,14 +185,35 @@ class CommentApp {
             const result = await response.json();
 
             if (result.success) {
-                await this.loadComments();
+                // Update instantly without full reload
+                const comment = this.findCommentById(commentId);
+                if (comment) {
+                    if (type === 'like') {
+                        comment.likes++;
+                    } else {
+                        comment.dislikes++;
+                    }
+                    this.renderComments();
+                }
+                this.showNotification('Reaction updated!', 'success');
             } else {
-                this.showNotification('Failed to update reaction', 'error');
+                throw new Error(result.error);
             }
         } catch (error) {
-            console.error('Error updating reaction:', error);
+            console.error('❌ Error updating reaction:', error);
             this.showNotification('Failed to update reaction', 'error');
         }
+    }
+
+    findCommentById(id, comments = this.comments) {
+        for (let comment of comments) {
+            if (comment.id === id) return comment;
+            if (comment.replies && comment.replies.length > 0) {
+                const found = this.findCommentById(id, comment.replies);
+                if (found) return found;
+            }
+        }
+        return null;
     }
 
     openReplyModal(parentId) {
@@ -175,9 +233,6 @@ class CommentApp {
     renderComments() {
         const container = document.getElementById('commentsContainer');
         const noComments = document.getElementById('noComments');
-        const loading = document.getElementById('loading');
-
-        loading.style.display = 'none';
 
         if (this.comments.length === 0) {
             container.innerHTML = '';
@@ -186,59 +241,92 @@ class CommentApp {
         }
 
         noComments.classList.add('hidden');
-        container.innerHTML = '';
+        
+        // Sort comments by timestamp (newest first)
+        const sortedComments = [...this.comments].sort((a, b) => 
+            new Date(b.timestamp) - new Date(a.timestamp)
+        );
 
-        this.comments.forEach(comment => {
-            container.appendChild(this.createCommentElement(comment));
-        });
+        container.innerHTML = sortedComments.map(comment => 
+            this.createCommentElement(comment)
+        ).join('');
     }
 
     createCommentElement(comment, isReply = false) {
-        const commentDiv = document.createElement('div');
-        commentDiv.className = isReply ? 'ml-8 mt-4' : 'bg-white p-6 shadow-lg border border-gray-200';
-
         const time = new Date(comment.timestamp).toLocaleString();
+        const repliesCount = comment.replies ? comment.replies.length : 0;
 
-        commentDiv.innerHTML = `
-            <div class="flex space-x-4">
-                <img src="${comment.avatar}" alt="${comment.name}" class="w-12 h-12">
-                <div class="flex-1">
-                    <div class="flex items-center justify-between mb-2">
-                        <div>
-                            <h4 class="font-semibold text-gray-900">${this.escapeHtml(comment.name)}</h4>
-                            <p class="text-gray-500 text-sm">${time}</p>
+        return `
+            <div class="bg-white p-5 shadow-lg border border-gray-200 fade-in ${isReply ? 'ml-8 mt-4' : ''}">
+                <div class="flex space-x-4">
+                    <img src="${comment.avatar}" alt="${comment.name}" 
+                         class="w-12 h-12 flex-shrink-0" 
+                         onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(comment.name)}&background=667eea&color=fff&size=64'">
+                    <div class="flex-1 min-w-0">
+                        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-3">
+                            <div class="flex items-center space-x-2 mb-2 sm:mb-0">
+                                <h4 class="font-semibold text-gray-900 text-lg">${this.escapeHtml(comment.name)}</h4>
+                                <span class="text-xs gradient-primary text-white px-2 py-1">User</span>
+                            </div>
+                            <span class="text-gray-500 text-sm">${time}</span>
                         </div>
-                    </div>
-                    <p class="text-gray-700 mb-4">${this.escapeHtml(comment.comment)}</p>
-                    
-                    <div class="flex items-center space-x-6">
-                        <button onclick="app.handleReaction('${comment.id}', 'like')" 
-                                class="flex items-center space-x-2 text-gray-600 hover:text-blue-600 transition-colors duration-200">
-                            <i class="ri-thumb-up-line ${comment.likes > 0 ? 'text-blue-600' : ''}"></i>
-                            <span>${comment.likes}</span>
-                        </button>
-                        <button onclick="app.handleReaction('${comment.id}', 'dislike')" 
-                                class="flex items-center space-x-2 text-gray-600 hover:text-red-600 transition-colors duration-200">
-                            <i class="ri-thumb-down-line ${comment.dislikes > 0 ? 'text-red-600' : ''}"></i>
-                            <span>${comment.dislikes}</span>
-                        </button>
-                        <button onclick="app.openReplyModal('${comment.id}')" 
-                                class="flex items-center space-x-2 text-gray-600 hover:text-green-600 transition-colors duration-200">
-                            <i class="ri-reply-line"></i>
-                            <span>Reply</span>
-                        </button>
-                    </div>
+                        
+                        <p class="text-gray-700 mb-4 text-base leading-relaxed">${this.escapeHtml(comment.comment)}</p>
+                        
+                        <div class="flex items-center space-x-6">
+                            <button onclick="app.handleReaction('${comment.id}', 'like')" 
+                                    class="flex items-center space-x-2 transition-all duration-200 group">
+                                <i class="ri-thumb-up-line text-gray-600 group-hover:text-blue-600 ${comment.likes > 0 ? 'text-blue-600' : ''}"></i>
+                                <span class="text-gray-700 font-medium">${comment.likes}</span>
+                            </button>
+                            <button onclick="app.handleReaction('${comment.id}', 'dislike')" 
+                                    class="flex items-center space-x-2 transition-all duration-200 group">
+                                <i class="ri-thumb-down-line text-gray-600 group-hover:text-red-600 ${comment.dislikes > 0 ? 'text-red-600' : ''}"></i>
+                                <span class="text-gray-700 font-medium">${comment.dislikes}</span>
+                            </button>
+                            <button onclick="app.openReplyModal('${comment.id}')" 
+                                    class="flex items-center space-x-2 text-gray-600 hover:text-green-600 transition-all duration-200">
+                                <i class="ri-reply-line"></i>
+                                <span>Reply</span>
+                            </button>
+                            ${repliesCount > 0 ? `
+                                <span class="text-gray-500 text-sm">
+                                    <i class="ri-chat-3-line mr-1"></i>${repliesCount} ${repliesCount === 1 ? 'reply' : 'replies'}
+                                </span>
+                            ` : ''}
+                        </div>
 
-                    ${comment.replies && comment.replies.length > 0 ? `
-                        <div class="mt-6 space-y-4 border-l-2 border-gray-200 pl-4">
-                            ${comment.replies.map(reply => this.createCommentElement(reply, true).outerHTML).join('')}
-                        </div>
-                    ` : ''}
+                        ${comment.replies && comment.replies.length > 0 ? `
+                            <div class="mt-6 space-y-4 border-l-2 border-blue-200 pl-4">
+                                ${comment.replies.map(reply => this.createCommentElement(reply, true)).join('')}
+                            </div>
+                        ` : ''}
+                    </div>
                 </div>
             </div>
         `;
+    }
 
-        return commentDiv;
+    showLoading() {
+        document.getElementById('loading').classList.remove('hidden');
+        document.getElementById('noComments').classList.add('hidden');
+    }
+
+    hideLoading() {
+        document.getElementById('loading').classList.add('hidden');
+    }
+
+    showError(message) {
+        const container = document.getElementById('commentsContainer');
+        container.innerHTML = `
+            <div class="text-center py-8 fade-in">
+                <i class="ri-error-warning-line text-4xl text-red-500 mb-3"></i>
+                <p class="text-red-600 font-semibold mb-2">${message}</p>
+                <button onclick="app.loadComments()" class="gradient-primary text-white px-4 py-2 text-sm font-semibold hover:opacity-90 transition-all duration-200">
+                    <i class="ri-refresh-line mr-1"></i>Try Again
+                </button>
+            </div>
+        `;
     }
 
     showNotification(message, type = 'info') {
@@ -250,25 +338,65 @@ class CommentApp {
 
         const notification = document.createElement('div');
         notification.id = 'notification';
-        notification.className = `fixed top-4 right-4 p-4 text-white font-semibold shadow-lg border-0 transform transition-transform duration-300 ${
+        notification.className = `fixed top-4 right-4 p-4 text-white font-semibold shadow-lg border-0 transform transition-transform duration-300 translate-x-full z-50 ${
             type === 'success' ? 'gradient-success' : 
-            type === 'error' ? 'gradient-danger' : 'gradient-primary'
+            type === 'error' ? 'gradient-danger' : 
+            type === 'warning' ? 'gradient-warning' : 'gradient-primary'
         }`;
-        notification.textContent = message;
+        notification.innerHTML = `
+            <div class="flex items-center space-x-2">
+                <i class="ri-${type === 'success' ? 'check-line' : type === 'error' ? 'error-warning-line' : 'information-line'}"></i>
+                <span>${message}</span>
+            </div>
+        `;
 
         document.body.appendChild(notification);
 
         // Animate in
         setTimeout(() => {
-            notification.classList.add('translate-x-0');
+            notification.classList.remove('translate-x-full');
         }, 100);
 
         // Remove after 3 seconds
         setTimeout(() => {
             notification.classList.add('translate-x-full');
             setTimeout(() => {
-                notification.remove();
+                if (notification.parentNode) {
+                    notification.remove();
+                }
             }, 300);
+        }, 3000);
+    }
+
+    setButtonLoading(button, text) {
+        button.innerHTML = `<i class="ri-loader-4-line animate-spin mr-2"></i>${text}`;
+        button.disabled = true;
+    }
+
+    setButtonNormal(button, html) {
+        button.innerHTML = html;
+        button.disabled = false;
+    }
+
+    async updateStats() {
+        try {
+            const response = await fetch(`${this.baseUrl}/api/stats`);
+            const result = await response.json();
+            
+            if (result.success) {
+                document.getElementById('totalComments').textContent = 
+                    `${result.stats.totalComments} total comments`;
+            }
+        } catch (error) {
+            console.error('Error updating stats:', error);
+        }
+    }
+
+    startRealTimeUpdates() {
+        // Real-time updates every 3 seconds
+        setInterval(async () => {
+            await this.loadComments();
+            await this.updateStats();
         }, 3000);
     }
 
@@ -280,21 +408,25 @@ class CommentApp {
             .replace(/"/g, "&quot;")
             .replace(/'/g, "&#039;");
     }
-
-    startRealTimeUpdates() {
-        // Real-time updates every 5 seconds
-        setInterval(async () => {
-            await this.loadComments();
-        }, 5000);
-    }
 }
 
-// Global functions for modal
+// Global functions
 function closeReplyModal() {
     app.closeReplyModal();
+}
+
+function loadComments() {
+    app.loadComments();
 }
 
 // Initialize app when DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {
     window.app = new CommentApp();
 });
+
+// Service Worker for faster loading (optional)
+if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/sw.js').catch(console.error);
+    });
+}
