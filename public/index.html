@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Comment Website - Real Time</title>
+    <title>Comment Website - JSONBin.io Database</title>
     <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css" rel="stylesheet">
@@ -24,6 +24,9 @@
         .gradient-warning {
             background: linear-gradient(135deg, #f6d365 0%, #fda085 100%);
         }
+        .gradient-database {
+            background: linear-gradient(135deg, #00b09b 0%, #96c93d 100%);
+        }
         .fade-in {
             animation: fadeIn 0.3s ease-in;
         }
@@ -37,14 +40,17 @@
     <div class="container mx-auto px-4 py-8 max-w-4xl">
         <!-- Header -->
         <header class="text-center mb-8 fade-in">
+            <div class="gradient-database text-white py-2 px-4 inline-block mb-4">
+                <i class="ri-database-2-line mr-2"></i>JSONBin.io FREE Database
+            </div>
             <h1 class="text-4xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent mb-3">
-                💬 Comment Section
+                💬 Real-Time Comments
             </h1>
-            <p class="text-gray-600 text-lg mb-2">Share your thoughts with everyone in real-time</p>
+            <p class="text-gray-600 text-lg mb-2">Powered by FREE JSONBin.io Database</p>
             <div id="stats" class="flex justify-center space-x-4 text-sm text-gray-500">
                 <span id="totalComments">Loading...</span>
                 <span>•</span>
-                <span id="serverStatus">🟢 Connected</span>
+                <span id="databaseStatus" class="text-green-600">🟢 JSONBin.io Connected</span>
             </div>
         </header>
 
@@ -66,7 +72,7 @@
                     </div>
                     <div class="flex items-end">
                         <div class="text-sm text-gray-500">
-                            Real-time comments • Instant updates
+                            <i class="ri-database-2-line mr-1"></i>Free Cloud Database
                         </div>
                     </div>
                 </div>
@@ -99,11 +105,16 @@
         <!-- Comments Header -->
         <div class="flex justify-between items-center mb-4 fade-in">
             <h2 class="text-2xl font-bold text-gray-800">
-                <i class="ri-chat-3-line mr-2"></i>Comments
+                <i class="ri-chat-3-line mr-2"></i>Live Comments
             </h2>
-            <button onclick="loadComments()" class="gradient-success text-white px-4 py-2 text-sm font-semibold hover:opacity-90 transition-all duration-200">
-                <i class="ri-refresh-line mr-1"></i>Refresh
-            </button>
+            <div class="flex space-x-2">
+                <button onclick="loadComments()" class="gradient-success text-white px-4 py-2 text-sm font-semibold hover:opacity-90 transition-all duration-200">
+                    <i class="ri-refresh-line mr-1"></i>Refresh
+                </button>
+                <div class="gradient-warning text-white px-3 py-2 text-sm font-semibold">
+                    <i class="ri-database-2-line mr-1"></i>FREE
+                </div>
+            </div>
         </div>
 
         <!-- Comments List -->
@@ -114,14 +125,20 @@
         <!-- Loading State -->
         <div id="loading" class="text-center py-8 fade-in">
             <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto"></div>
-            <p class="text-gray-600 mt-4">Loading comments...</p>
+            <p class="text-gray-600 mt-4">Loading comments from JSONBin.io...</p>
         </div>
 
         <!-- No Comments State -->
         <div id="noComments" class="text-center py-12 hidden fade-in">
             <i class="ri-chat-3-line text-6xl text-gray-300 mb-4"></i>
             <p class="text-gray-500 text-lg mb-4">No comments yet. Be the first to comment!</p>
-            <p class="text-gray-400 text-sm">Start the conversation by posting above 👆</p>
+            <p class="text-gray-400 text-sm">Powered by FREE JSONBin.io database</p>
+        </div>
+
+        <!-- Database Info -->
+        <div class="mt-12 text-center text-gray-500 text-sm">
+            <p>💡 <strong>FREE Database:</strong> This app uses JSONBin.io - no registration required, completely free!</p>
+            <p class="mt-1">All comments are stored in cloud and visible to everyone in real-time 🌐</p>
         </div>
     </div>
 
