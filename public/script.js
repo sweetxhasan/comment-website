@@ -31,13 +31,21 @@ class CommentApp {
             if (result.success) {
                 this.comments = result.data || [];
                 this.renderComments();
-                console.log(`✅ Comments loaded in ${loadTime}ms`);
+                console.log(`✅ Comments loaded from JSONBin.io in ${loadTime}ms`);
+                
+                // Update database status
+                document.getElementById('databaseStatus').textContent = '🟢 JSONBin.io Connected';
+                document.getElementById('databaseStatus').className = 'text-green-600';
             } else {
                 throw new Error(result.error);
             }
         } catch (error) {
             console.error('❌ Error loading comments:', error);
             this.showError('Failed to load comments. Please refresh the page.');
+            
+            // Update database status
+            document.getElementById('databaseStatus').textContent = '🔴 JSONBin.io Offline';
+            document.getElementById('databaseStatus').className = 'text-red-600';
         } finally {
             this.isLoading = false;
             this.hideLoading();
@@ -117,7 +125,7 @@ class CommentApp {
                 
                 await this.loadComments(); // Reload comments instantly
                 this.showNotification(result.message || 'Comment posted successfully!', 'success');
-                console.log(`✅ Comment posted in ${responseTime}ms`);
+                console.log(`✅ Comment saved to JSONBin.io in ${responseTime}ms`);
             } else {
                 throw new Error(result.error);
             }
@@ -385,7 +393,7 @@ class CommentApp {
             
             if (result.success) {
                 document.getElementById('totalComments').textContent = 
-                    `${result.stats.totalComments} total comments`;
+                    `${result.stats.totalComments} comments • ${result.stats.database}`;
             }
         } catch (error) {
             console.error('Error updating stats:', error);
@@ -423,10 +431,3 @@ function loadComments() {
 document.addEventListener('DOMContentLoaded', () => {
     window.app = new CommentApp();
 });
-
-// Service Worker for faster loading (optional)
-if ('serviceWorker' in navigator) {
-    window.addEventListener('load', () => {
-        navigator.serviceWorker.register('/sw.js').catch(console.error);
-    });
-}
